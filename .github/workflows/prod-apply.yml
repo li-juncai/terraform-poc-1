@@ -1,0 +1,30 @@
+name: Prod Apply
+on:
+  repository_dispatch:
+    types: [ prod-approved ]
+
+jobs:
+  terraform_apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Move Code to Prod
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git checkout -b prod-deploy
+          mv test/main.tf prod/main.tf
+          git add prod/main.tf
+          git commit -m "Move to prod"
+          git push origin prod-deploy
+      
+      - name: Terraform Apply
+        env:
+          TF_VAR_alicloud_access_key: ${{ secrets.ALICLOUD_ACCESS_KEY }}
+          TF_VAR_alicloud_secret_key: ${{ secrets.ALICLOUD_SECRET_KEY }}
+        run: |
+          cd prod
+          terraform init -backend-config="bucket=tf-state-bucket" -backend-config="key=prod/terraform.tfstate"
+          terraform apply -auto-approve tfplan
